@@ -1,483 +1,342 @@
 # Grand Exchange r478 backport checklist
 
-Target: backport the Grand Exchange from a clean RuneScape revision 478 cache/reference into the 2004 progressive base, preserving the native 2004/r254 game wherever possible.
+Target: backport the complete Grand Exchange interface and exchange functionality from a clean RuneScape revision 478 cache/reference into the 2004 progressive base, while keeping the native r254 world and NPC assets.
 
 Base branch: `Testing`
 
 Source target: one exact revision 478 cache/client snapshot, frozen and documented before asset import begins.
 
-## Hard scope rule: no r478 NPC backport
+## Hard scope rules
 
-The Grand Exchange NPC is deliberately **out of scope** for the r478 cache import.
+### No r478 Grand Exchange location/world backport
 
-- [ ] Do not import r478 Grand Exchange clerk NPC definitions.
-- [ ] Do not import r478 NPC models, head models, recolours, sequences, sounds, spawn definitions or dialogue solely for the clerk.
-- [ ] Do not renumber or replace existing `content/pack/npc.pack` entries to make room for a GE clerk.
-- [ ] Select a suitable NPC already present in the native r254 cache and bind the Grand Exchange interaction to that NPC.
-- [ ] Keep the native NPC's existing visual definition; only add the minimum server-side interaction/dialogue hooks needed to access the GE.
-- [ ] If the chosen native NPC has unrelated existing behaviour, preserve it and add the GE operation without breaking current content.
-- [ ] The PR is not ready if any r478 NPC asset has been imported accidentally.
+The r478 Grand Exchange area itself is deliberately **out of scope**.
+
+- [ ] Do not import r478 Grand Exchange map squares, terrain or landscape data.
+- [ ] Do not import GE buildings, booths, counters, signs, walls, stairs or decorative world scenery solely to recreate the r478 location.
+- [ ] Do not import collision/clipping or minimap/mapscene data for the r478 GE area.
+- [ ] Do not replace any existing r254 map region to make room for the GE.
+- [ ] Access the Grand Exchange only through a native r254 NPC placed in the existing world.
+
+### No r478 NPC backport
+
+The r478 Grand Exchange clerk NPC is also deliberately **out of scope**.
+
+- [ ] Do not import r478 GE clerk NPC definitions.
+- [ ] Do not import clerk NPC models, head models, recolours, sequences, sounds or spawn definitions.
+- [ ] Do not renumber or replace existing `content/pack/npc.pack` entries.
+- [ ] Select a suitable NPC already present in the native r254 cache.
+- [ ] Preserve that NPC's native model, head, animation and visual data.
+- [ ] Add only the minimum spawn/interaction/dialogue hook required to open the GE interface.
 
 ## Definition of done
 
-- [ ] The Grand Exchange area and all required r478 world/cache assets render correctly in the 2004 Java client.
-- [ ] The equivalent assets and interfaces work in the webclient where applicable.
-- [ ] The main Grand Exchange interface opens and displays all offer slots and offer states correctly.
-- [ ] Players can create buy offers and sell offers.
-- [ ] Item search works for buy offers.
-- [ ] Quantity and price editing work through server-authoritative input handling.
+- [ ] A native r254 NPC placed in the existing world opens the Grand Exchange.
+- [ ] The complete r478 GE interface family is available and visually functional.
+- [ ] All required interface widgets/components are backported or compatibly recreated.
+- [ ] All required GE sprites and 2D resources are backported.
+- [ ] Required item model/icon rendering works inside the GE interface.
+- [ ] Buy-offer item search works.
+- [ ] Buy and sell offer setup works, including quantity and price controls.
+- [ ] Offer slots display empty, active, partial, complete and cancelled states correctly.
+- [ ] Players can submit buy and sell offers.
+- [ ] Offers match correctly with partial and full fills.
+- [ ] Players can cancel active offers safely.
+- [ ] Players can collect purchased items, sale proceeds, refunded coins and unsold items.
 - [ ] Offers persist across logout and server restart.
-- [ ] Matching supports partial fills, complete fills, cancellation and collection without duplication or loss.
-- [ ] Coins/items are reserved and released safely during offer lifecycle changes.
-- [ ] Collection works for items and coins using the intended inventory/bank/container rules.
-- [ ] Tradeability restrictions are enforced server-side.
-- [ ] Concurrent offer matching cannot duplicate coins or items.
-- [ ] The GE can be accessed through a native r254 NPC rather than an imported r478 clerk.
-- [ ] No unrelated 2004 content is replaced wholesale.
-- [ ] All imported r478 IDs and their local mappings are documented.
-- [ ] Clean checkout + normal cache/build pipeline reproduces the GE assets.
+- [ ] Coins and items cannot be duplicated or lost through submit/match/cancel/collect races.
+- [ ] Java client supports the complete GE interface flow.
+- [ ] Webclient supports the same logical GE flow where applicable.
+- [ ] No r478 GE map/location assets are imported.
+- [ ] No r478 GE NPC assets are imported.
+- [ ] Existing r254 world, maps, NPCs, inventory, bank and trade systems remain intact.
 
 ---
 
-## Phase 0 — Freeze source data and create a dependency manifest
+## Phase 0 — Freeze the r478 source and build a manifest
 
-- [ ] Select one exact r478 cache snapshot and matching client/reference implementation.
-- [ ] Record the cache/archive identifier, source location, hashes and any extraction tooling used.
-- [ ] Do not mix GE assets from multiple revisions unless the difference is explicitly documented and verified.
-- [ ] Enumerate every GE-related cache archive/config before importing anything.
-- [ ] Build an r478 source-ID -> local-ID manifest for every imported loc, model, interface, sprite, sequence, spotanim, map square and other dependency.
-- [ ] Record which assets are copied directly, converted, recreated in the local pack format or intentionally omitted.
-- [ ] Explicitly mark all NPC assets as excluded in the manifest.
-- [ ] Separate GE-specific dependencies from unrelated r478 cache content so the 2004 cache is not replaced wholesale.
+- [ ] Choose one exact r478 cache/client snapshot as the source of truth.
+- [ ] Record its archive/source identifier and date.
+- [ ] Record extraction/conversion tooling and hashes where practical.
+- [ ] Enumerate the complete Grand Exchange interface family.
+- [ ] Enumerate all interface/component IDs used by the GE.
+- [ ] Enumerate all GE sprites, fonts, containers, varps, varbits and client-state dependencies.
+- [ ] Enumerate item-model/config dependencies required specifically for interface rendering/search.
+- [ ] Build a source-ID -> local-ID mapping for imported assets.
+- [ ] Explicitly mark GE map/location assets as excluded.
+- [ ] Explicitly mark r478 NPC assets as excluded.
 
-## Phase 1 — Audit the existing 2004 cache/build architecture
+## Phase 1 — Audit existing interface/client architecture
 
-- [ ] Identify how the current project packs and names world locations, models, interfaces, inventories, maps, sequences, spotanims and scripts.
-- [ ] Audit the relevant local packs, including `content/pack/interface.pack`, `interface.order`, `inv.pack`, `map.pack`, `model.pack`, `obj.pack`, `seq.pack`, `spotanim.pack`, `script.pack` and any location/config packs used elsewhere in the tree.
-- [ ] Identify where raw cache/map/model/sprite resources live in the Java client and webclient build pipelines.
-- [ ] Identify free or extension ID ranges for imported configs and models.
-- [ ] Do not renumber existing 2004 IDs merely to make the r478 IDs line up.
-- [ ] Identify client format differences between r254-era cache data and the r478 GE assets before writing conversions.
-- [ ] Identify any newer widget/interface opcodes used by the r478 GE interface that the current client does not support.
-- [ ] Prefer converting GE data into the existing client format over globally replacing the 2004 interface/cache engine.
+- [ ] Audit `content/pack/interface.pack` and `interface.order`.
+- [ ] Audit `content/pack/inv.pack` and existing item-container handling.
+- [ ] Audit existing sprite/font loading in the Java client.
+- [ ] Audit equivalent sprite/interface handling in the webclient.
+- [ ] Identify supported r254-era widget types and properties.
+- [ ] Identify r478 GE widget features missing from the current clients.
+- [ ] Identify existing component-operation packets and server trigger paths.
+- [ ] Identify existing numeric/text input flows that can be reused for GE quantity, price and search.
+- [ ] Prefer adapting the GE to the existing interface engine instead of replacing that engine globally.
 
-## Phase 2 — Grand Exchange world/map backport
+## Phase 2 — Complete r478 GE interface manifest
 
-- [ ] Identify the exact map squares/regions required for the Grand Exchange area in r478.
-- [ ] Import the required terrain/landscape data for the GE area only.
-- [ ] Import the location placement data for GE booths, desks, signs, walls, stairs, decorative objects and other required scenery.
-- [ ] Preserve planes, rotations, object shapes and placement coordinates.
-- [ ] Preserve collision and clipping generated by the imported world locations.
-- [ ] Verify walkable routes into, through and around the GE.
-- [ ] Verify stairs, doors and any other traversal objects work with the existing movement engine.
-- [ ] Import or regenerate any minimap/mapscene data needed for the GE area.
-- [ ] Confirm nearby pre-existing 2004 map squares are not overwritten unnecessarily.
-- [ ] Document every r478 map square brought into the project.
+- [ ] Identify the overview interface.
+- [ ] Identify buy-offer setup interface/state.
+- [ ] Identify sell-offer setup interface/state.
+- [ ] Identify item-search/result interface/state.
+- [ ] Identify active-offer detail state.
+- [ ] Identify partially completed offer state.
+- [ ] Identify completed offer state.
+- [ ] Identify cancelled/aborted offer state.
+- [ ] Identify collection interface/components.
+- [ ] Identify confirm/back/abort/collect controls.
+- [ ] Identify offer slot backgrounds, progress indicators and status icons.
+- [ ] Identify all text fields and dynamic values.
+- [ ] Identify item model/icon components.
+- [ ] Identify all scroll areas and clipping requirements.
+- [ ] Identify hover/pressed/disabled sprite states.
 
-## Phase 3 — GE world object/location definitions
+## Phase 3 — GE sprites and 2D resources
 
-- [ ] Identify every r478 location/object definition used in the imported GE map squares that is required for the area to render and function.
-- [ ] Import the Grand Exchange booths/counters and all functional interaction objects.
-- [ ] Import decorative GE architecture only when required for visual completeness of the selected area.
-- [ ] Preserve names, examine text, dimensions, clipping flags, interaction options, model references, recolours, scale, offsets and animation references where present.
-- [ ] Map r478 location IDs to stable local IDs without colliding with existing content.
-- [ ] Update the appropriate local pack/config files with readable names.
-- [ ] Ensure booth interaction options expose the intended GE action without removing Examine or unrelated existing operations.
-- [ ] Verify object morph/varbit dependencies if any GE location changes state dynamically.
+- [ ] Extract every GE-specific sprite required by the interface family.
+- [ ] Import buy/sell icons.
+- [ ] Import offer-slot graphics.
+- [ ] Import progress/status graphics.
+- [ ] Import search-result visuals.
+- [ ] Import collection-state visuals.
+- [ ] Preserve dimensions, offsets, transparency and alpha behaviour.
+- [ ] Reuse native fonts where compatible.
+- [ ] Import/convert only genuinely required font resources.
+- [ ] Verify sprite rendering in the Java client.
+- [ ] Verify equivalent rendering in the webclient.
 
-## Phase 4 — Models, textures and world rendering dependencies
+## Phase 4 — Interface/widget compatibility
 
-- [ ] Trace every imported GE location to all required model IDs.
-- [ ] Import all required static world models.
-- [ ] Import animated world models if any GE scenery depends on them.
-- [ ] Import texture/material dependencies only when actually referenced by the selected GE assets.
-- [ ] Preserve recolours, retextures, alpha, priorities, normals/lighting and scale required for r478 appearance.
-- [ ] Verify the r254-era Java model decoder can read the r478 models.
-- [ ] If a model format is incompatible, convert/down-port that asset rather than changing every existing model globally.
-- [ ] Verify converted models retain correct orientation, bounds, collision footprint and lighting.
-- [ ] Add stable names/mappings to `content/pack/model.pack` or the repo's equivalent model mapping layer.
-- [ ] Verify identical model resolution in Java client and webclient where both are supported.
+- [ ] Map every required r478 widget type to an existing r254-compatible representation where possible.
+- [ ] Add the smallest client compatibility extensions needed for unsupported GE widget features.
+- [ ] Allocate stable local interface/component IDs without colliding with existing content.
+- [ ] Preserve component dimensions, positions, clipping and draw order.
+- [ ] Preserve text alignment and dynamic text updates.
+- [ ] Preserve sprite states and hover behaviour.
+- [ ] Preserve item-model rendering inside offer/search components.
+- [ ] Preserve scrolling behaviour for item search results.
+- [ ] Ensure close/back operations leave the player in a valid interface state.
+- [ ] Ensure opening the GE does not corrupt sidebars, inventory, chatbox or modal interfaces.
 
-## Phase 5 — Animation / sequence / spotanim dependencies
+## Phase 5 — GE containers and interface item rendering
 
-- [ ] Identify whether any GE scenery or interface flow references sequences/animations.
-- [ ] Import only the required r478 sequences.
-- [ ] Trace imported sequences to required frame groups and skeleton/base data.
-- [ ] Convert frame/skeleton data to the existing client format if necessary.
-- [ ] Import any GE-specific spotanims/graphics only if they are actually used.
-- [ ] Preserve frame ordering, delays, looping, priority, transforms and other fields required for correct playback.
-- [ ] Add stable mappings to `content/pack/seq.pack` and `content/pack/spotanim.pack` as applicable.
-- [ ] Do not import clerk/NPC animations simply because they are present near the GE source data.
-
-## Phase 6 — Interface asset manifest
-
-- [ ] Identify the complete r478 Grand Exchange interface family: overview, buy setup, sell setup, item search/result state, active offer state, completed/partial offer state, collection state and confirmation/detail screens.
-- [ ] Enumerate every component/widget used by those interfaces.
-- [ ] Identify all referenced sprites, fonts, item-container bindings, text components, buttons, hover states, progress indicators, slot backgrounds and status icons.
-- [ ] Identify all component scripts/listeners/conditions used by the r478 interface.
-- [ ] Identify varp/varbit/client-state dependencies used to show offer state.
-- [ ] Record original r478 interface and component IDs before assigning local mappings.
-- [ ] Ensure every visual dependency is accounted for before implementation begins.
-
-## Phase 7 — Grand Exchange sprites and 2D resources
-
-- [ ] Extract all GE-specific sprites from the frozen r478 source.
-- [ ] Import button states, offer-slot graphics, buy/sell icons, progress/status visuals, search-result visuals and collection-related graphics.
-- [ ] Preserve sprite dimensions, offsets, transparency and palette/alpha behaviour.
-- [ ] Avoid replacing common 2004 sprites globally when the GE can reference a new local copy safely.
-- [ ] Reuse existing 2004 fonts where the visual result is compatible; import/convert a font only if the GE truly depends on a glyph/font variant the client lacks.
-- [ ] Verify sprites render in both fixed client layouts used by this project.
-- [ ] Verify webclient sprite decoding matches the Java client result.
-
-## Phase 8 — Convert/backport the r478 GE interface into the 2004 client
-
-- [ ] Determine whether the r478 GE uses interface/widget features not supported by the current client.
-- [ ] Map each required r478 widget type/property to an existing r254-compatible representation where possible.
-- [ ] Add the smallest client-side compatibility extensions needed for GE widgets that cannot be represented directly.
-- [ ] Do not wholesale replace the 2004 interface engine with an r478 client.
-- [ ] Preserve the existing `content/pack/interface.pack` / `interface.order` workflow.
-- [ ] Allocate stable local interface/component IDs without colliding with existing interfaces.
-- [ ] Ensure component visibility, text, sprites, item models, scrolling and click areas match the intended GE layout.
-- [ ] Preserve hover states and disabled states.
-- [ ] Verify component ordering and clipping are correct.
-- [ ] Verify all interface close/back buttons return to a safe state.
-- [ ] Verify opening the GE does not corrupt currently open inventories/sidebars/chat interfaces.
-
-## Phase 9 — GE inventory/container definitions
-
-- [ ] Identify all item containers used by GE offer setup and collection.
-- [ ] Add any required inventory definitions to `content/pack/inv.pack` or the equivalent local container registry.
+- [ ] Identify all GE-specific item containers required by offer setup and collection.
+- [ ] Add required definitions to `content/pack/inv.pack` or the equivalent registry.
 - [ ] Define slot counts and stack behaviour correctly.
-- [ ] Ensure offer item slots can represent a single item type plus requested/offered quantity.
+- [ ] Ensure offer setup can represent selected item, quantity and price.
 - [ ] Ensure collection slots can represent item and coin outputs safely.
-- [ ] Verify container updates are authoritative from the server.
-- [ ] Verify stale client container state cannot be used to duplicate or overwrite items.
+- [ ] Import or map only item/model/config dependencies required for correct GE item icons/models.
+- [ ] Do not import world-location models solely because they exist in the r478 GE cache region.
+- [ ] Keep server container state authoritative.
 
-## Phase 10 — Client/server interface operations and packets
+## Phase 6 — Native r254 NPC access
+
+- [ ] Pick and document the exact native r254 NPC used to access the GE.
+- [ ] Place/spawn that NPC at the desired existing-world location.
+- [ ] Add a clear GE interaction option or dialogue route.
+- [ ] Open the GE overview through the normal server interface-open path.
+- [ ] Preserve the NPC's native model, chathead, animations and unrelated interactions.
+- [ ] Verify no r478 NPC cache dependency is required.
+- [ ] Verify no r478 GE map or world object is required.
+
+## Phase 7 — Interface operation routing
 
 - [ ] Map every clickable GE component to an existing operation packet where possible.
-- [ ] Add the smallest compatible packet support required for any operation the 2004 client cannot currently express.
-- [ ] Route all GE clicks through the normal server trigger/script system rather than executing economic state changes client-side.
-- [ ] Validate interface ID, component ID, slot and item ID on every server-handled operation.
-- [ ] Reject spoofed clicks against components that are not currently open/valid for the player.
-- [ ] Ensure buy/sell selection, abort, collect, back and confirm operations are all server-authoritative.
-- [ ] Ensure repeated packets or double-clicks are idempotent where economic state may mutate.
+- [ ] Add minimal packet support only where the current clients cannot express a required operation.
+- [ ] Route operations through the existing server trigger/script architecture.
+- [ ] Validate interface ID, component ID, slot and item ID on every economic operation.
+- [ ] Reject clicks for interfaces/components the player does not currently have open.
+- [ ] Keep all economic state changes server-authoritative.
+- [ ] Make repeated/double-clicked economic operations idempotent where necessary.
 
-## Phase 11 — Item search
+## Phase 8 — Item search
 
-- [ ] Implement the GE item search flow required by the r478 buy interface.
-- [ ] Decide whether search filtering is server-side or client-side based on the existing architecture; keep final item selection server-validated either way.
-- [ ] Search only items eligible for the GE under the chosen r478 rules.
-- [ ] Normalize names consistently without allowing ambiguous/spoofed item IDs.
-- [ ] Support partial name search and deterministic result ordering.
-- [ ] Cap the result count to what the interface can display safely.
+- [ ] Implement the r478-style buy-offer search flow.
+- [ ] Support partial name matching.
+- [ ] Use deterministic result ordering.
+- [ ] Limit results to what the interface can safely display.
 - [ ] Handle zero results cleanly.
-- [ ] Prevent hidden/admin/debug/untradeable objects from becoming selectable through search.
-- [ ] Verify selected item name, ID and rendered model/icon all correspond to the same server-approved item.
+- [ ] Exclude untradeable/admin/debug objects.
+- [ ] Validate the selected item server-side.
+- [ ] Ensure displayed item name, model/icon and selected object ID always agree.
 
-## Phase 12 — Quantity and price input
+## Phase 9 — Quantity and price controls
 
-- [ ] Wire quantity changes to the existing numeric-input/chatbox mechanisms where practical.
-- [ ] Wire price changes to the existing numeric-input/chatbox mechanisms where practical.
-- [ ] Support interface increment/decrement buttons and any r478 preset controls that are in scope.
-- [ ] Validate integer bounds and overflow server-side.
-- [ ] Prevent zero/negative quantity offers.
-- [ ] Prevent zero/negative prices.
-- [ ] Prevent multiplication overflow when calculating total coin reservation.
-- [ ] Keep displayed totals synchronized with server state.
-- [ ] If r478 price-guide/range rules are reproduced, derive them from documented source behaviour rather than guesses.
+- [ ] Support quantity increment/decrement controls used by the r478 interface.
+- [ ] Support price increment/decrement controls used by the r478 interface.
+- [ ] Support any r478 preset buttons that are part of the chosen reference.
+- [ ] Reuse existing numeric input/chatbox mechanisms where practical.
+- [ ] Reject zero and negative quantities.
+- [ ] Reject zero and negative prices.
+- [ ] Prevent integer/multiplication overflow.
+- [ ] Keep displayed totals synchronized with authoritative server state.
 
-## Phase 13 — Offer data model
+## Phase 10 — Persistent offer model
 
-- [ ] Define one authoritative persistent offer model.
-- [ ] Store player/account owner, offer slot, buy/sell direction, object ID, target quantity, completed quantity, requested unit price, fulfilled value, collected value/items, status and timestamps/sequence ordering needed by the matcher.
-- [ ] Define explicit states for empty, pending/active, partially filled, completed, cancelled/aborted and fully collected.
-- [ ] Ensure state transitions are one-way and validated.
-- [ ] Keep UI presentation state derived from authoritative offer state rather than independently editable client variables.
-- [ ] Version persisted offer data for future migrations.
+- [ ] Define one authoritative persistent GE offer model.
+- [ ] Store owner/account identifier.
+- [ ] Store offer slot.
+- [ ] Store buy/sell direction.
+- [ ] Store object ID.
+- [ ] Store requested quantity and fulfilled quantity.
+- [ ] Store requested unit price and fulfilled value.
+- [ ] Store collectible/refundable item and coin amounts.
+- [ ] Store offer status.
+- [ ] Store ordering/timestamp data required by matching rules.
+- [ ] Define explicit empty, active, partial, complete, cancelled and collected states.
+- [ ] Version persisted data for migration safety.
 
-## Phase 14 — Offer slot rules
+## Phase 11 — Offer slot behaviour
 
-- [ ] Determine the number of offer slots intended for the r478 target and document the choice.
-- [ ] Open the overview with the correct number of slots.
+- [ ] Reproduce the intended number of offer slots from the r478 reference.
 - [ ] Prevent creation in an occupied slot.
-- [ ] Prevent multiple concurrent setup flows from claiming the same slot.
-- [ ] Preserve completed/cancelled offers until their outputs are collected.
-- [ ] Reset a slot to empty only after all remaining items/coins have been collected safely.
+- [ ] Prevent two concurrent setup flows from claiming the same slot.
+- [ ] Preserve complete/cancelled offers until all outputs are collected.
+- [ ] Reset a slot only after collection is complete.
+- [ ] Drive all slot visuals from authoritative offer state.
 
-## Phase 15 — Buy-offer creation
+## Phase 12 — Buy-offer submission
 
-- [ ] Validate selected object is GE-eligible.
+- [ ] Validate selected item is GE-eligible.
 - [ ] Validate quantity and unit price.
-- [ ] Calculate maximum reservation safely.
-- [ ] Reserve/remove the required coins atomically when the offer is submitted.
-- [ ] Do not create the active offer if coin reservation fails.
-- [ ] Store the exact reserved amount and reconcile it during fills/cancellation/collection.
-- [ ] Start matching only after the offer is durably recorded.
-- [ ] Refresh the player's GE interface from authoritative state after submission.
+- [ ] Calculate maximum coin reservation safely.
+- [ ] Atomically reserve/remove required coins when submitted.
+- [ ] Do not create an offer if reservation fails.
+- [ ] Persist the offer before it becomes matchable.
+- [ ] Refresh the interface from authoritative state after submission.
 
-## Phase 16 — Sell-offer creation
+## Phase 13 — Sell-offer submission
 
-- [ ] Validate selected inventory object and amount.
-- [ ] Enforce tradeability and any note/certificate rules intentionally.
-- [ ] Remove/reserve the sold items atomically when the offer is submitted.
-- [ ] Do not create the active offer if item reservation fails.
+- [ ] Validate selected inventory item and quantity.
+- [ ] Enforce tradeability and note/certificate rules intentionally.
+- [ ] Atomically reserve/remove sold items when submitted.
+- [ ] Do not create an offer if reservation fails.
 - [ ] Preserve stack quantities exactly.
-- [ ] Record the reserved item quantity so cancellation can return only the unfilled remainder.
-- [ ] Start matching only after the offer is durably recorded.
+- [ ] Persist the offer before it becomes matchable.
+- [ ] Refresh the interface from authoritative state after submission.
 
-## Phase 17 — Matching engine
+## Phase 14 — Matching engine
 
-- [ ] Implement a central matching engine rather than pairing offers in UI scripts.
-- [ ] Match only identical underlying tradeable object IDs under the intended note/unnoted policy.
-- [ ] Match buy and sell offers only when their prices are compatible.
-- [ ] Define deterministic price-time ordering based on the intended r478 behaviour/reference.
-- [ ] Define the transaction price rule from the source behaviour and document it.
-- [ ] Support partial fills in either direction.
-- [ ] Update both offers atomically for every match.
-- [ ] Transfer value from reserved buyer coins to seller proceeds without passing through mutable player inventory state.
-- [ ] Transfer fulfilled item quantity from seller reservation to buyer collectible output.
-- [ ] Never mint or destroy net items/coins except for deliberate source-accurate mechanics explicitly documented.
-- [ ] Avoid modern GE tax unless the r478 reference actually contains such a rule; do not import modern OSRS economy rules by accident.
-- [ ] Prevent the same offer from being matched twice concurrently.
-- [ ] Prevent self-match edge cases according to the chosen source/reference rule and document the behaviour.
+- [ ] Implement a central matching engine outside interface scripts.
+- [ ] Match compatible buy and sell offers for the same underlying item.
+- [ ] Reproduce/document the intended r478 price-time priority behaviour.
+- [ ] Reproduce/document the transaction-price rule.
+- [ ] Support partial fills.
+- [ ] Support complete fills.
+- [ ] Update both sides atomically for every match.
+- [ ] Move reserved buyer coins into seller collectible proceeds.
+- [ ] Move reserved seller items into buyer collectible items.
+- [ ] Prevent one offer from being matched twice concurrently.
+- [ ] Define and document self-match behaviour.
+- [ ] Do not add modern GE tax or unrelated OSRS economy rules unless present in the frozen r478 reference.
 
-## Phase 18 — Offer progress and status updates
+## Phase 15 — Offer progress and live interface updates
 
 - [ ] Update fulfilled quantity/value after every match.
-- [ ] Mark offers complete only when their requested quantity is fully filled or they are explicitly cancelled.
-- [ ] Preserve partial progress when an offer is cancelled.
-- [ ] Expose progress to the interface in the correct slot and status components.
-- [ ] Keep local client progress bars/text cosmetic; server state remains authoritative.
-- [ ] Refresh online owners safely when their offers change due to another player's transaction.
-- [ ] Ensure offline owners see the latest state on next login/open.
+- [ ] Update active/partial/complete status correctly.
+- [ ] Refresh an online player's open GE interface when their offers change.
+- [ ] Ensure offline owners see current state on next login/open.
+- [ ] Keep progress bars and status text cosmetic representations of server state.
 
-## Phase 19 — Abort/cancel flow
+## Phase 16 — Cancel/abort
 
-- [ ] Allow cancellation only for the player's own active/partially filled offer.
+- [ ] Allow cancellation only for the owner's active/partial offer.
 - [ ] Make cancellation atomic against concurrent matching.
-- [ ] Stop further matching before calculating refundable remainder.
-- [ ] For buy offers, make unspent reserved coins collectible/refundable exactly once.
-- [ ] For sell offers, make unsold reserved items collectible/refundable exactly once.
-- [ ] Preserve already fulfilled buyer items/seller coins.
-- [ ] Mark the offer state so repeated cancel packets cannot duplicate refunds.
+- [ ] Stop future matching before calculating refundable remainder.
+- [ ] Return unspent buy-offer coins exactly once.
+- [ ] Return unsold sell-offer items exactly once.
+- [ ] Preserve already fulfilled items/proceeds.
+- [ ] Reject duplicate cancellation packets safely.
 
-## Phase 20 — Collection flow
+## Phase 17 — Collection
 
-- [ ] Implement collection of fulfilled buy items.
-- [ ] Implement collection of seller proceeds.
-- [ ] Implement collection of unspent buyer coins after fills/cancellation if applicable.
-- [ ] Implement collection of unsold items after cancellation.
-- [ ] Support partial collection where the destination cannot accept everything, if that matches the intended project convention.
-- [ ] Define inventory-first/bank/container behaviour explicitly rather than silently deleting overflow.
-- [ ] Update collectible balances atomically with inventory/bank insertion.
-- [ ] Never mark output collected before the destination mutation succeeds.
-- [ ] Repeated collect clicks must not duplicate output.
-- [ ] Closing the interface mid-collection must leave recoverable state.
+- [ ] Collect fulfilled buy items.
+- [ ] Collect seller proceeds.
+- [ ] Collect refunded buy-offer coins.
+- [ ] Collect unsold sell-offer items.
+- [ ] Support partial collection if required by inventory-space rules.
+- [ ] Prevent collection duplication on repeated packets.
+- [ ] Update persistent collectible amounts atomically.
+- [ ] Reset the offer slot only after everything has been collected.
 
-## Phase 21 — Persistence and restart safety
+## Phase 18 — Persistence and restart safety
 
-- [ ] Persist all active, completed, cancelled and uncollected offers.
-- [ ] Persist reserved balances or represent them in a restart-safe ledger.
-- [ ] Load offers before allowing a player to mutate GE state after login.
-- [ ] Ensure server restart during a match cannot apply only one side of the trade.
-- [ ] Add recovery/reconciliation logic for any interrupted transaction record if the persistence layer requires it.
-- [ ] Ensure completed-but-uncollected value survives restart.
-- [ ] Ensure cancelled-but-uncollected value survives restart.
-- [ ] Add migration behaviour for existing player saves with no GE data.
+- [ ] Persist all active offers.
+- [ ] Persist partial progress.
+- [ ] Persist completed/cancelled offers awaiting collection.
+- [ ] Persist reserved/collectible accounting accurately.
+- [ ] Reload offers safely after server restart.
+- [ ] Ensure restart cannot repeat a completed trade.
+- [ ] Ensure restart cannot erase reserved items/coins or collectible outputs.
 
-## Phase 22 — Tradeability and object rules
+## Phase 19 — Concurrency and anti-duplication
 
-- [ ] Reuse the project's authoritative tradeability rules where possible.
-- [ ] Block quest items, untradeables, temporary items, admin/debug items and other excluded objects.
-- [ ] Decide and document certificate/note handling so one economic item cannot create duplicate independent markets accidentally.
-- [ ] Preserve stackability semantics.
-- [ ] Handle degradable/charged/variant items explicitly; do not collapse distinct states unless the source design requires it.
-- [ ] Validate every offer item at creation and again when necessary during load/migration.
+- [ ] Protect submit vs submit races.
+- [ ] Protect match vs cancel races.
+- [ ] Protect match vs match races.
+- [ ] Protect cancel vs collect races.
+- [ ] Protect collect vs collect races.
+- [ ] Reject spoofed interface, slot and item IDs.
+- [ ] Reject stale setup state.
+- [ ] Reject replayed submit/cancel/collect packets.
+- [ ] Verify total item/coin conservation across matching and cancellation.
 
-## Phase 23 — Price/guide data
+## Phase 20 — Java client validation
 
-- [ ] Determine which r478 price/guide values the GE interface expects.
-- [ ] Import or recreate only the data required for the r478 GE behaviour/UI.
-- [ ] Keep guide/reference pricing separate from actual matched transaction state.
-- [ ] Do not use modern OSRS guide prices as a substitute for the r478 reference.
-- [ ] Document source IDs/data files and any conversion into local tables.
-- [ ] Add a controlled developer update path if guide data is maintained as content rather than code.
+- [ ] GE overview renders correctly.
+- [ ] Buy setup renders correctly.
+- [ ] Sell setup renders correctly.
+- [ ] Search results render and scroll correctly.
+- [ ] Item models/icons render correctly.
+- [ ] Quantity/price controls work.
+- [ ] Offer progress/status displays correctly.
+- [ ] Cancel/collect controls work.
+- [ ] Returning/back/closing works cleanly.
 
-## Phase 24 — Server scripting and interaction entry points
+## Phase 21 — Webclient validation
 
-- [ ] Add booth/object operations that open the GE.
-- [ ] Bind a selected native r254 NPC operation to open the same GE flow.
-- [ ] Do not require an imported r478 clerk to reach any GE functionality.
-- [ ] Add dialogue only where useful for the native NPC integration; keep it minimal and compatible with current content style.
-- [ ] Route interface setup through the existing RuneScript/content system where appropriate.
-- [ ] Keep economic matching/persistence logic centralized in engine/service code where transactional safety is easier to enforce.
-- [ ] Ensure scripts cannot directly mint offer proceeds outside the authoritative GE service.
+- [ ] GE overview renders correctly.
+- [ ] Buy setup renders correctly.
+- [ ] Sell setup renders correctly.
+- [ ] Search results render and scroll correctly.
+- [ ] Item models/icons render correctly.
+- [ ] Quantity/price controls work.
+- [ ] Offer progress/status displays correctly.
+- [ ] Cancel/collect controls work.
+- [ ] Returning/back/closing works cleanly.
 
-## Phase 25 — Native r254 NPC integration
+## Phase 22 — Regression and scope validation
 
-- [ ] Choose the exact native r254 NPC to act as the GE access NPC.
-- [ ] Record its local NPC name/ID in this checklist or a follow-up manifest before implementation is marked ready.
-- [ ] Keep its original r254 model/head/animation data unchanged.
-- [ ] Add a clear GE interaction option or dialogue route using existing server scripting conventions.
-- [ ] Verify the NPC can open the GE overview and any tutorial/help dialogue that is intentionally included.
-- [ ] Preserve other operations already attached to the chosen NPC unless deliberately superseded and documented.
-- [ ] Do not import Grand Exchange clerk heads for chatheads; use the native NPC chathead.
-- [ ] Test the NPC in Java client and webclient.
+- [ ] Existing world maps remain unchanged.
+- [ ] Existing world location/object definitions remain unchanged except the deliberate native NPC spawn/integration.
+- [ ] Existing NPC configs/models/head models remain unchanged.
+- [ ] Existing trade works normally.
+- [ ] Existing inventory and bank behaviour works normally.
+- [ ] Existing interfaces still open and operate normally.
+- [ ] Existing item IDs remain stable.
+- [ ] No r478 GE map squares are present in the diff.
+- [ ] No r478 GE scenery/location definitions are present in the diff.
+- [ ] No r478 GE clerk NPC config/model/head/animation assets are present in the diff.
+- [ ] No unrelated r478 content is imported.
 
-## Phase 26 — Client state / varps / varbits
+## Acceptance criteria
 
-- [ ] Inventory all r478 client variables used by the GE interface.
-- [ ] Reuse existing local varp/varbit ranges where safe or allocate stable new local mappings.
-- [ ] Keep authoritative offer state on the server; vars only drive presentation.
-- [ ] Update vars/components in a consistent order to avoid briefly showing the wrong item/price/status.
-- [ ] Reset temporary setup vars when leaving the GE.
-- [ ] Prevent stale vars from one offer slot appearing in another slot.
-- [ ] Document every r478 varp/varbit -> local mapping.
+This draft is ready for review only when:
 
-## Phase 27 — Java client compatibility
-
-- [ ] GE map squares load without cache errors.
-- [ ] GE world objects render with correct models/textures.
-- [ ] GE minimap/mapscene rendering is correct.
-- [ ] GE interfaces decode without unknown widget/config opcode crashes.
-- [ ] GE sprites/fonts render correctly.
-- [ ] Item models/icons render in offer/search/collection components.
-- [ ] Text input/numeric input paths work.
-- [ ] Component clicks send expected operations.
-- [ ] Offer-state component updates render without relogging.
-- [ ] Closing/reopening the GE restores current authoritative state.
-- [ ] Existing 2004 interfaces still function after compatibility changes.
-
-## Phase 28 — Webclient compatibility
-
-- [ ] GE map squares load.
-- [ ] GE world object models/textures render.
-- [ ] GE interfaces decode.
-- [ ] GE sprites/fonts render.
-- [ ] Item models/icons render in GE widgets.
-- [ ] Search and numeric input work.
-- [ ] Component operation packets are semantically equivalent to the Java client.
-- [ ] Offer status updates render live.
-- [ ] Existing webclient interfaces remain unaffected.
-
-## Phase 29 — Cache/build pipeline
-
-- [ ] Place imported raw assets in the repository's normal source/cache pipeline rather than relying on a developer-local cache.
-- [ ] Ensure a clean checkout can rebuild or assemble the modified cache successfully.
-- [ ] Update cache indices, archive versions, CRC/version tables and download metadata as required.
-- [ ] Verify fresh Java clients can obtain/load the modified cache.
-- [ ] Verify fresh webclient builds can obtain/load the same logical assets.
-- [ ] Document binary provenance and conversion steps.
-- [ ] Keep generated/binary changes limited to the required GE dependency set.
-- [ ] Add hashes for imported binary assets to make later source drift detectable.
-
-## Phase 30 — Concurrency and anti-duplication tests
-
-- [ ] Two matching offers submitted at the same tick cannot double-fill.
-- [ ] Cancel racing against a match produces exactly one valid outcome.
-- [ ] Collect racing against another collect produces output exactly once.
-- [ ] Logout during submit cannot duplicate or lose reserved coins/items.
-- [ ] Logout during cancel cannot duplicate refunds.
-- [ ] Logout during collect cannot duplicate output.
-- [ ] Server restart during a match cannot leave buyer and seller ledgers inconsistent.
-- [ ] Multiple worlds/processes are either explicitly unsupported or use a shared locking/transaction strategy; document the deployment assumption.
-- [ ] Integer overflow/large-stack tests cannot create negative balances or wrap totals.
-- [ ] Invalid/spoofed packets cannot collect another player's offer.
-
-## Phase 31 — Functional test matrix
-
-### World/content
-- [ ] Player can reach the GE area.
-- [ ] Booths and relevant objects have correct options.
-- [ ] Collision and pathfinding are correct.
-- [ ] Native r254 access NPC appears/behaves correctly without any r478 NPC asset.
-
-### Buy flow
-- [ ] Open empty slot.
-- [ ] Search item.
-- [ ] Select result.
-- [ ] Enter quantity.
-- [ ] Enter price.
-- [ ] Submit with enough coins.
-- [ ] Reject with insufficient coins.
-- [ ] Partially fill.
-- [ ] Fully fill.
-- [ ] Cancel before any fill.
-- [ ] Cancel after partial fill.
-- [ ] Collect item output.
-- [ ] Collect unspent/refunded coins.
-
-### Sell flow
-- [ ] Open empty slot.
-- [ ] Select eligible inventory item.
-- [ ] Enter quantity.
-- [ ] Enter price.
-- [ ] Submit with enough items.
-- [ ] Reject with insufficient quantity.
-- [ ] Reject untradeable item.
-- [ ] Partially fill.
-- [ ] Fully fill.
-- [ ] Cancel before any fill.
-- [ ] Cancel after partial fill.
-- [ ] Collect sale proceeds.
-- [ ] Collect unsold returned items.
-
-### Persistence
-- [ ] Relog with active offer.
-- [ ] Relog with partial offer.
-- [ ] Relog with completed uncollected offer.
-- [ ] Restart server with active offer.
-- [ ] Restart server with completed uncollected offer.
-- [ ] Restart server with cancelled uncollected offer.
-
-## Phase 32 — Regression checks
-
-- [ ] Existing r254/2004 map squares still load unchanged outside the imported GE area.
-- [ ] Existing location/object IDs remain stable.
-- [ ] Existing model IDs remain stable.
-- [ ] Existing interface IDs remain stable.
-- [ ] Existing inventory/container definitions remain stable.
-- [ ] Existing sequences/spotanims remain stable.
-- [ ] Existing NPC configs remain stable.
-- [ ] Existing NPC model/head/animation assets remain stable.
-- [ ] Existing trade system continues to work independently of the GE.
-- [ ] Existing bank/inventory operations remain safe.
-- [ ] Existing RuneScript interface triggers still dispatch correctly.
-- [ ] Java client can still log in/play normal 2004 content.
-- [ ] Webclient can still log in/play normal 2004 content.
-- [ ] No unrelated r478 areas, items, skills, NPCs or interfaces were pulled in accidentally.
-
-## Phase 33 — Documentation before marking ready
-
-- [ ] Record the exact r478 source cache/client snapshot.
-- [ ] Add the complete r478 source-ID -> local-ID manifest.
-- [ ] List every imported map square.
-- [ ] List every imported/converted model.
-- [ ] List every imported interface/component and sprite.
-- [ ] List every imported sequence/spotanim/frame dependency.
-- [ ] List every varp/varbit mapping.
-- [ ] Document matching order and transaction-price behaviour.
-- [ ] Document persistence/locking strategy.
-- [ ] Document note/certificate and item-variant policy.
-- [ ] Record the chosen native r254 NPC used for GE access.
-- [ ] State explicitly that no r478 NPC definition/model/head/animation/spawn was imported.
-- [ ] Add screenshots/video of the GE world area and all major interface states in the Java client.
-- [ ] Add equivalent webclient evidence where supported.
-- [ ] Record manual test results for buy, sell, partial fill, cancel, collect, relog and restart cases.
-
-## Ready-for-review criteria
-
-This PR should remain draft until all of the following are true:
-
-- [ ] Required r478 GE world/map/location/interface/sprite/model dependencies are present and documented.
-- [ ] GE interfaces are usable in the 2004 client without replacing unrelated interface systems.
-- [ ] Buy and sell offer lifecycle is complete.
-- [ ] Matching is deterministic, persistent and duplication-safe.
-- [ ] Partial fill, cancellation and collection are complete.
-- [ ] Restart/logout safety is verified.
-- [ ] Java client works end-to-end.
-- [ ] Webclient works end-to-end where applicable.
-- [ ] A native r254 NPC provides GE access.
-- [ ] No r478 Grand Exchange NPC asset/config/spawn has been imported.
-- [ ] Existing 2004 content and IDs remain intact outside the explicitly documented GE additions.
+- [ ] The native r254 NPC opens the GE interface from the existing world.
+- [ ] The complete r478 GE interface flow is present.
+- [ ] Buy search/setup/submission works.
+- [ ] Sell setup/submission works.
+- [ ] Matching, partial fills and full fills work.
+- [ ] Cancellation works without loss or duplication.
+- [ ] Collection works without loss or duplication.
+- [ ] Offers survive logout and restart.
+- [ ] Java client passes the full interface flow.
+- [ ] Webclient passes the equivalent interface flow where applicable.
+- [ ] No r478 GE world/location assets were imported.
+- [ ] No r478 GE NPC assets were imported.
