@@ -1,6 +1,6 @@
 import fs from 'fs';
-import path from 'path';
 
+import './scripts/generate-ge-untradeable.ts';
 import { minify } from 'terser';
 
 import { nth_identifier } from './identifier.js';
@@ -59,9 +59,12 @@ async function applyTerser(script: BunOutput): Promise<boolean> {
                 reserved: [
                     // custom content flags set via inline (non-bundled) HTML script in view/client.ejs —
                     // must keep literal names or CUSTOM_CONTENT?.clans lookups break after mangling
+                    '__customContent',
                     'clans',
                     'middleMouseRotation',
                     'compassReset',
+                    'antiMacroRotation',
+                    'scrollwheelZoom',
 
                     // stdlib
                     'willReadFrequently',
@@ -136,13 +139,11 @@ const args = process.argv.slice(2);
 const prod = args[0] !== 'dev';
 
 const entrypoints = [
-    'src/client/Client.ts',
-    'src/mapview/MapView.ts'
+    { file: 'src/client/ClientEntry.ts', output: 'client.js' },
+    { file: 'src/mapview/MapView.ts', output: 'mapview.js' }
 ];
 
-for (const file of entrypoints) {
-    const output = path.basename(file).replace('.ts', '.js').toLowerCase();
-
+for (const { file, output } of entrypoints) {
     const script = await bunBuild(file, [], prod, prod ? ['console'] : []);
     if (script) {
         if (prod) {
